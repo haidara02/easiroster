@@ -24,8 +24,14 @@ export function shiftsToEvents(shifts) {
   }));
 }
 
-export async function writeIcs(shifts, targetPath) {
+export function createCalendarString(shifts) {
   const cal = ical({ name: 'Roster' });
   shiftsToEvents(shifts).forEach((event) => cal.createEvent(event));
-  await fs.writeFile(targetPath, cal.toString(), 'utf-8');
+  return cal.toString();
 }
+
+export async function writeIcs(shifts, targetPath) {
+  const ics = createCalendarString(shifts);
+  await fs.writeFile(targetPath, ics, 'utf-8');
+}
+
