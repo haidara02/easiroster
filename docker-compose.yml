@@ -6,8 +6,6 @@ services:
     container_name: easiroster
     restart: unless-stopped
     network_mode: "host"
-    env_file:
-      - /home/.env
     environment:
       API_BASE_URL: ${API_BASE_URL}
       PERSON_NUMBER: ${PERSON_NUMBER}
