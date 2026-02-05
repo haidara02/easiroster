@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     network_mode: "host"
     env_file:
-      - /home/.env
+      - /home/stack.env
     volumes:
       - easiroster-data:/app/data
 
