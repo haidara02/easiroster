@@ -6,6 +6,22 @@ services:
     container_name: easiroster
     restart: unless-stopped
     network_mode: "host"
+    environment:
+      API_BASE_URL: https://oneteam.mycoles.com.au/api/oneteam/rosters
+      PERSON_NUMBER: ${PERSON_NUMBER}
+      AUTH_BEARER_TOKEN: ${AUTH_BEARER_TOKEN}
+      AUTH_COOKIE: ${AUTH_COOKIE}
+      USER_AGENT: ${USER_AGENT}
+      ACCEPT_LANGUAGE: ${ACCEPT_LANGUAGE}
+      ORIGIN: ${ORIGIN}
+      REFERER: ${REFERER}
+      SEC_CH_UA: ${SEC_CH_UA}
+      SEC_CH_UA_PLATFORM: ${SEC_CH_UA_PLATFORM}
+      SEC_CH_UA_MOBILE: ${SEC_CH_UA_MOBILE}
+      SEC_GPC: ${SEC_GPC}
+      EXTRA_HEADERS: ${EXTRA_HEADERS}
+      EMAIL: ${EMAIL}
+      PASSWORD: ${PASSWORD}
     volumes:
       - easiroster-data:/app/data
 
