@@ -27,8 +27,12 @@ export function loadConfig() {
         extraHeadersRaw: process.env.EXTRA_HEADERS || ''
     };
 
+    // If no static token or cookie provided, require interactive login credentials
     if (!config.bearerToken && !config.cookie) {
-        throw new Error('Provide AUTH_BEARER_TOKEN or AUTH_COOKIE in .env');
+        const canInteractive = process.env.EMAIL && process.env.PASSWORD;
+        if (!canInteractive) {
+            throw new Error('Provide AUTH_BEARER_TOKEN or AUTH_COOKIE in .env, or set EMAIL and PASSWORD for automated login');
+        }
     }
 
     if (config.extraHeadersRaw) {

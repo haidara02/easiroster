@@ -1,5 +1,6 @@
 import { loadConfig } from './config.js';
 import { createApiClient, fetchRoster } from './client.js';
+import { getFreshAccessToken } from './auth.js';
 import { extractShifts } from './roster.js';
 import { createCalendarString } from './ical.js';
 
@@ -38,13 +39,37 @@ export function defaultDateRange(today = new Date()) {
 
 export async function generateRosterIcs({ dateFrom, dateTo }) {
   const config = loadConfig();
-  const client = createApiClient(config);
+  // Ensure we have a bearer token; if not, attempt to capture one via Playwright
+  if (!config.bearerToken) {
+    console.log('No bearer token provided; attempting automated login to capture token...');
+    const token = await getFreshAccessToken();
+    config.bearerToken = token;
+  }
 
-  const roster = await fetchRoster(client, {
-    personNumber: config.personNumber,
-    dateFrom,
-    dateTo
-  });
+  let client = createApiClient(config);
+
+  let roster;
+  try {
+    roster = await fetchRoster(client, {
+      personNumber: config.personNumber,
+      dateFrom,
+      dateTo
+    });
+  } catch (err) {
+    if (err?.response?.status === 401) {
+      console.log('Received 401 from API; retrying after interactive login...');
+      const token = await getFreshAccessToken();
+      config.bearerToken = token;
+      client = createApiClient(config);
+      roster = await fetchRoster(client, {
+        personNumber: config.personNumber,
+        dateFrom,
+        dateTo
+      });
+    } else {
+      throw err;
+    }
+  }
 
   const shifts = extractShifts(roster);
   const ics = createCalendarString(shifts);
