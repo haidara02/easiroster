@@ -13,11 +13,11 @@ services:
     volumes:
       - easiroster-data:/app/data
     networks:
-      - npm
+      - nginx_default
 
 volumes:
   easiroster-data:
 
 networks:
-  npm:
-    external: true
+  nginx_default:
+    external: true 
