@@ -6,6 +6,9 @@ services:
     container_name: easiroster
     restart: unless-stopped
     network_mode: "host"
+    environment:
+      NODE_ENV: ${NODE_ENV}
+      PORT: ${PORT}
     volumes:
       - easiroster-data:/app/data
 
