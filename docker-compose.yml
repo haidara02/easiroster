@@ -5,19 +5,11 @@ services:
     build: .
     container_name: easiroster
     restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
+    network_mode: "host"
+    env_file:
+      - .env
     volumes:
       - easiroster-data:/app/data
-    networks:
-      - nginx_default
 
 volumes:
   easiroster-data:
-
-networks:
-  nginx_default:
-    external: true 
