@@ -274,9 +274,9 @@ export async function getFreshAccessToken({
     throw new Error("Failed to capture Bearer token from browser requests");
   } finally {
     try {
-      // await browser.close();
+      await browser.close();
     } catch (e) {
-      // ignore
+      throw new Error("Failed to close browser: " + e.message);
     }
   }
 }
