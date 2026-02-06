@@ -60,7 +60,7 @@ export async function getFreshAccessToken({
 
   if (!email || !password) {
     throw new Error(
-      "EMAIL and PASSWORD must be set in .env for automated login",
+      "EMAIL and PASSWORD must be set in .env for automated login"
     );
   }
 
@@ -122,7 +122,7 @@ export async function getFreshAccessToken({
     if (
       /login.microsoftonline.com|login.microsoft.com/.test(currentUrl) ||
       (await page.$(
-        'input[type="email"], input[name="loginfmt"], input[id^="i0116"]',
+        'input[type="email"], input[name="loginfmt"], input[id^="i0116"]'
       ))
     ) {
       // Email
@@ -146,7 +146,7 @@ export async function getFreshAccessToken({
       try {
         await page.waitForSelector(
           'input[type="password"], input[id^="i0118"]',
-          { timeout: 20000 },
+          { timeout: 20000 }
         );
         const passInput = page.getByRole("textbox", {
           name: /password/i,
@@ -167,7 +167,7 @@ export async function getFreshAccessToken({
       // Look for typical OTP inputs
       let needOtp = false;
       try {
-        needOtp = await await page
+        needOtp = await page
           .locator('[role="button"][data-value="OneWaySMS"]')
           .waitFor({ timeout: 8000 })
           .then(() => true)
@@ -179,17 +179,32 @@ export async function getFreshAccessToken({
       if (needOtp) {
         await page.locator('[role="button"][data-value="OneWaySMS"]').click();
         const code = await promptTerminal(
-          "Enter SMS verification code (or press Enter to abort): ",
+          "Enter SMS verification code (or press Enter to abort): "
         );
         if (!code) {
           throw new Error("SMS verification required but no code provided");
         }
-        const codeInput = await page.$(
-          'input[type="tel"], input[name*="code"], input[id*="otc"], input[name="otc"]',
+        const codeInput = page.locator(
+          'input[type="tel"], input[name="otc"], input[id*="otc"]'
         );
-        if (!codeInput) throw new Error("Expected OTP input but not found");
+
+        await codeInput.waitFor({ timeout: 30000 });
         await codeInput.fill(code);
         await codeInput.press("Enter");
+        // Handle "Stay signed in?" prompt
+        try {
+          const yesButton = page.locator("#idSIButton9");
+
+          await yesButton.waitFor({
+            state: "visible",
+            timeout: 15000,
+          });
+
+          await yesButton.click();
+          console.log('Clicked "Stay signed in"');
+        } catch {
+          // Continue
+        }
       }
 
       // Wait for redirect to target or final page load
