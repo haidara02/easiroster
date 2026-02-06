@@ -193,7 +193,7 @@ export async function getFreshAccessToken({
           "Enter SMS verification code (or press Enter to abort): "
         );
         if (!code) {
-          throw new Error("SMS verification required but no code provided");
+          console.log("SMS verification required but no code provided");
         }
         const codeInput = page.locator(
           'input[type="tel"], input[name="otc"], input[id*="otc"]'

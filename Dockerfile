@@ -6,6 +6,8 @@ ENV NODE_ENV=production
 
 COPY package*.json ./
 RUN npm ci --omit=dev
+RUN npx playwright install --with-deps chromium
+
 
 COPY src ./src
 
