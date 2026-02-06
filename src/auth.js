@@ -70,7 +70,6 @@ export async function getFreshAccessToken({
   let context;
   try {
     if (cookiesState) {
-      // cookiesState may be a full storageState object (cookies + origins)
       context = await browser.newContext({ storageState: cookiesState });
     } else {
       context = await browser.newContext();
@@ -117,7 +116,6 @@ export async function getFreshAccessToken({
       .goto(TARGET_URL, { waitUntil: "domcontentloaded", timeout: 60_000 })
       .catch(() => null);
 
-    // If we are on Microsoft login, perform form fill
     const currentUrl = page.url();
     if (
       /login.microsoftonline.com|login.microsoft.com/.test(currentUrl) ||
@@ -136,10 +134,15 @@ export async function getFreshAccessToken({
         await emailInput.click();
         await emailInput.fill(email);
 
-        // Important: Microsoft often requires Enter
-        await emailInput.press("Enter");
+        try {
+          await emailInput.press("Enter");
+        } catch (e) {
+          console.log("Failed to press Enter after entering email.");
+        }
       } catch (e) {
-        // proceed
+        console.log(
+          "Failed to enter email. Email may be incorrect or input not found."
+        );
       }
 
       // Wait for password input
@@ -157,14 +160,18 @@ export async function getFreshAccessToken({
         await passInput.click();
         await passInput.fill(password);
 
-        // Important: Microsoft often requires Enter
-        await passInput.press("Enter");
+        try {
+          await passInput.press("Enter");
+        } catch (e) {
+          console.log("Failed to press Enter after entering password.");
+        }
       } catch (e) {
-        // continue even if not found
+        console.log(
+          "Failed to enter password. Password may be incorrect or input not found."
+        );
       }
 
       // After submitting credentials, Microsoft may require MFA code
-      // Look for typical OTP inputs
       let needOtp = false;
       try {
         needOtp = await page
@@ -177,7 +184,11 @@ export async function getFreshAccessToken({
       }
 
       if (needOtp) {
-        await page.locator('[role="button"][data-value="OneWaySMS"]').click();
+        try {
+          await page.locator('[role="button"][data-value="OneWaySMS"]').click();
+        } catch (e) {
+          console.log("Couldn't press SMS verification button.");
+        }
         const code = await promptTerminal(
           "Enter SMS verification code (or press Enter to abort): "
         );
@@ -188,9 +199,20 @@ export async function getFreshAccessToken({
           'input[type="tel"], input[name="otc"], input[id*="otc"]'
         );
 
-        await codeInput.waitFor({ timeout: 30000 });
-        await codeInput.fill(code);
-        await codeInput.press("Enter");
+        try {
+          await codeInput.waitFor({ timeout: 30000 });
+          await codeInput.fill(code);
+          try {
+            await codeInput.press("Enter");
+          } catch (e) {
+            console.log("Failed to press Enter after entering SMS code.");
+          }
+        } catch (e) {
+          console.log(
+            "Failed to enter SMS code. Code may be incorrect or input not found."
+          );
+        }
+
         // Handle "Stay signed in?" prompt
         try {
           const yesButton = page.locator("#idSIButton9");
@@ -202,25 +224,24 @@ export async function getFreshAccessToken({
 
           await yesButton.click();
           console.log('Clicked "Stay signed in"');
-        } catch {
-          // Continue
+        } catch (e) {
+          console.log("Failed to click 'Stay signed in' button.");
         }
       }
 
-      // Wait for redirect to target or final page load
       try {
         await page.waitForURL(/colesgroup\.sharepoint\.com|mycoles/, {
           timeout: 30000,
         });
       } catch (e) {
-        // continue
+        console.log(
+          "Login may have failed or took too long, still waiting for token..."
+        );
       }
     }
 
-    // Now wait a short while for pages to make API requests containing the token
     const foundToken = await tokenPromise;
 
-    // Persist cookies/state
     try {
       const state = await context.storageState();
       await saveCookies(state);
@@ -232,7 +253,6 @@ export async function getFreshAccessToken({
       return foundToken;
     }
 
-    // As a fallback, try to reload and wait once more
     await page.reload({ waitUntil: "domcontentloaded" }).catch(() => null);
     token = null;
     const foundToken2 = await new Promise((resolve) => {
