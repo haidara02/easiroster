@@ -119,9 +119,6 @@ async function handleGenerateRoster(req, res) {
     res.end(JSON.stringify({ success: false, error: err.message }));
   }
 }
-
-// TODO: Add POST handlers for /refresh-auth and /submit-sms to trigger Playwright login flow and accept SMS codes, respectively
-
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
 
@@ -162,7 +159,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.method !== "GET" || url.pathname === "/health") {
+  if (req.method !== "GET" && url.pathname === "/health") {
     res.statusCode = 200;
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.end("OK");
