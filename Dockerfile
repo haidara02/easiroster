@@ -1,4 +1,5 @@
 FROM node:20-alpine
+FROM mcr.microsoft.com/playwright:focal
 
 WORKDIR /app
 
@@ -6,7 +7,7 @@ ENV NODE_ENV=production
 
 COPY package*.json ./
 RUN npm ci --omit=dev
-RUN npx playwright install --with-deps chromium
+#RUN npx playwright install --with-deps chromium
 
 
 COPY src ./src
