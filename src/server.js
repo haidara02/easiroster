@@ -1,6 +1,6 @@
 import http from "node:http";
 import { URL } from "node:url";
-import { formatExpiry } from "./service.js";
+import { submitSMSCode, getAuthStatus, getFreshAccessToken } from "./auth.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,31 +36,88 @@ async function handleRosterRequest(req, res, url) {
 }
 
 async function handleAuthStatus(req, res) {
-  let tokenStatus = "Unknown";
-  let expiry = "Unknown";
-  try {
-    const cookiesRaw = await fs.readFile(
-      path.resolve("./data/cookies.json"),
-      "utf-8",
-    );
-    const c = JSON.parse(cookiesRaw);
-    console.log("Loaded cookies:", c);
-    const estauth = c.cookies.find((c) => c.name === "ESTSAUTHPERSISTENT");
-    if (!estauth) console.log("Missing ESTSAUTHPERSISTENT");
-    expiry = formatExpiry(estauth.expires);
-    tokenStatus = "Loaded";
-  } catch (e) {
-    tokenStatus = "Missing";
-  }
-
+  const runtime = getAuthStatus();
   const template = await loadTemplate();
   const html = template
-    .replace("{{tokenStatus}}", tokenStatus)
-    .replace("{{expiry}}", expiry);
+    .replace("{{tokenStatus}}", runtime.lastToken ? "Valid" : "Missing")
+    .replace("{{authInProgress}}", runtime.authInProgress)
+    .replace("{{waitingForSMS}}", runtime.waitingForSMS);
 
   res.statusCode = 200;
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.end(html);
+}
+
+async function handleAuthStatusJSON(req, res) {
+  const runtime = getAuthStatus();
+  res.statusCode = 200;
+  res.setHeader("Content-Type", "application/json");
+  res.end(JSON.stringify(runtime));
+}
+
+async function handleRefreshAuth(req, res) {
+  getFreshAccessToken().catch((err) => {
+    console.error("Auth flow error:", err.message);
+  });
+  res.statusCode = 200;
+  res.setHeader("Content-Type", "application/json");
+  res.end(JSON.stringify({ success: true }));
+}
+
+async function handleSubmitSMS(req, res) {
+  let body = "";
+  for await (const chunk of req) body += chunk;
+
+  let code;
+  try {
+    const data = JSON.parse(body);
+    code = data.sms_code;
+  } catch (e) {
+    // Try form-encoded as fallback
+    const params = new URLSearchParams(body);
+    code = params.get("sms_code");
+  }
+
+  if (!code) {
+    res.statusCode = 400;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ success: false, error: "Missing SMS code" }));
+    return;
+  }
+
+  try {
+    submitSMSCode(code);
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ success: true }));
+  } catch (e) {
+    res.statusCode = 400;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ success: false, error: e.message }));
+  }
+}
+
+async function handleGenerateRoster(req, res) {
+  try {
+    const { defaultDateRange, generateRosterIcs } =
+      await import("./service.js");
+    const range = defaultDateRange();
+    const { ics, shiftCount } = await generateRosterIcs({
+      dateFrom: range.from,
+      dateTo: range.to,
+    });
+    const outputPath = path.join(__dirname, "..", "roster.ics"); // to root for easier access
+    await fs.writeFile(outputPath, ics, "utf-8");
+    await fs.writeFile(ICS_PATH, ics, "utf-8");
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ success: true, shiftCount }));
+  } catch (err) {
+    console.error("Roster generation error:", err.message);
+    res.statusCode = 500;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ success: false, error: err.message }));
+  }
 }
 
 // TODO: Add POST handlers for /refresh-auth and /submit-sms to trigger Playwright login flow and accept SMS codes, respectively
@@ -70,6 +127,26 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === "/") {
     await handleAuthStatus(req, res);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/auth-status-json") {
+    await handleAuthStatusJSON(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/refresh-auth") {
+    await handleRefreshAuth(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/submit-sms") {
+    await handleSubmitSMS(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/generate-roster") {
+    await handleGenerateRoster(req, res);
     return;
   }
 

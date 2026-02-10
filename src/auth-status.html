@@ -92,7 +92,11 @@
     }
 
     .value {
-      color: rgb(24, 24, 24);
+      color: rgb(94, 94, 94);
+      background: rgb(240, 240, 240);
+      padding: 5px 10px;
+      font-size: small;
+      border-radius: 20px;
     }
 
     .bookmark {
@@ -144,21 +148,23 @@
       border-radius: 0;
       border-bottom: 1px solid #ccc;
       letter-spacing: 2px;
+
       &:focus {
         outline: none;
       }
-      &:focus ~ .bar:before {
+
+      &:focus~.bar:before {
         width: 200px;
       }
     }
 
-    .sms-container {
+    #smsContainer {
       padding: 20px;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      border : 2px solid rgb(196, 196, 196);
+      border: 2px solid rgb(196, 196, 196);
     }
 
     .bar {
@@ -166,6 +172,7 @@
       display: block;
       width: 200px;
       margin-bottom: 20px;
+
       &:before {
         content: '';
         height: 2px;
@@ -193,12 +200,16 @@
       </div>
       <div class="status-info">
         <div class="status-row">
-          <span class="label">Cookie Status:</span>
+          <span class="label">Token Status</span>
           <span class="value">{{tokenStatus}}</span>
         </div>
         <div class="status-row">
-          <span class="label">Cookie Expiry:</span>
-          <span class="value">{{expiry}}</span>
+          <span class="label">Auth in Progress</span>
+          <span class="value" id="authProgress">{{authInProgress}}</span>
+        </div>
+        <div class="status-row">
+          <span class="label">Waiting for SMS</span>
+          <span class="value" id="waitingSMS">{{waitingForSMS}}</span>
         </div>
       </div>
     </div>
@@ -211,7 +222,7 @@
       <button id="refreshBtn" onclick="handleRefresh()" {{authInProgressDisabled}}>
         Get Roster
       </button>
-      <div class="sms-container">
+      <div id="smsContainer" style="display: none">
         <input type="text" inputmode="numeric" pattern="\d{6}" maxlength="6" style="text-align: center;"
           oninput="this.value = this.value.replace(/\D/g, '').slice(0, 6)" id="smsCode" placeholder="Enter SMS code" />
         <span class="bar"></span>
@@ -220,16 +231,108 @@
     </div>
   </div>
   <script>
+    let pollInterval = null;
     async function handleRefresh() {
+
       const btn = document.getElementById("refreshBtn");
       btn.disabled = true;
+      try {
+        const res = await fetch("/refresh-auth", { method: "POST" });
+        const data = await res.json();
+        if (data.success) {
+          console.log("Token Refresh Started");
+          startPolling(); // waiting for SMS
+        }
+      } catch (e) {
+        console.error("Error refreshing token:", e);
+        btn.disabled = false;
+      }
     }
 
     async function handleSubmitSMS() {
       const code = document.getElementById("smsCode").value;
       if (!code || code.length < 6) {
-        showToast("Please enter a valid SMS code", "error");
+        console.log("Please enter a valid SMS code");
         return;
+      }
+      try {
+        const res = await fetch("/submit-sms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sms_code: code }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          console.log("Code Submitted");
+          document.getElementById("smsCode").value = "";
+        } else {
+          console.log(data.error || "Failed to submit code");
+        }
+      } catch (e) {
+        console.log("Error submitting code");
+      }
+    }
+
+    async function pollAuthStatus() {
+      try {
+        const res = await fetch("/auth-status-json");
+        const data = await res.json();
+
+        document.getElementById("authProgress").textContent =
+          data.authInProgress;
+        document.getElementById("waitingSMS").textContent =
+          data.waitingForSMS;
+
+        const smsGroup = document.getElementById("smsContainer");
+        if (data.waitingForSMS && smsGroup.style.display === "none") {
+          smsGroup.style.display = "block";
+          console.log("SMS Code Needed");
+          document.getElementById("smsCode").focus();
+        }
+
+        if (
+          !data.authInProgress &&
+          data.lastToken &&
+          !window.rosterGenerated
+        ) {
+          window.rosterGenerated = true;
+          stopPolling();
+          await generateRoster();
+        }
+      } catch (e) {
+        console.error("Poll error:", e);
+      }
+    }
+
+    async function generateRoster() {
+      try {
+        console.log("Generating roster...");
+        const res = await fetch("/generate-roster", { method: "POST" });
+        const data = await res.json();
+        if (data.success) {
+          console.log("Roster generated: " + data.shiftCount + " shift(s)");
+          document.getElementById("smsContainer").style.display = "none";
+          window.rosterGenerated = false;
+        } else {
+          console.log("Error: " + (data.error || "Unknown error"));
+        }
+        document.getElementById("refreshBtn").disabled = false;
+      } catch (e) {
+        console.log("Error generating roster");
+        document.getElementById("refreshBtn").disabled = false;
+      }
+    }
+
+    function startPolling() {
+      if (pollInterval) return;
+      pollInterval = setInterval(pollAuthStatus, 500);
+      pollAuthStatus();
+    }
+
+    function stopPolling() {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
       }
     }
   </script>
