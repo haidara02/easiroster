@@ -165,7 +165,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.method !== "GET" && url.pathname === "/health") {
+  if (req.method === "GET" && url.pathname === "/health") {
     res.statusCode = 200;
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.end("OK");
