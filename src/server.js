@@ -127,6 +127,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === "HEAD") {
+    res.statusCode = 200;
+    res.end();
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/auth-status-json") {
     await handleAuthStatusJSON(req, res);
     return;
@@ -171,13 +177,6 @@ const server = http.createServer(async (req, res) => {
   res.end("Not Found");
 });
 
-// Only start the server if this file is run directly
-if (
-  import.meta &&
-  import.meta.url &&
-  import.meta.url.endsWith("/src/server.js")
-) {
-  server.listen(PORT, () => {
-    console.log(`Roster server listening on port ${PORT}`);
-  });
-}
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Listening on ${PORT}`);
+});
