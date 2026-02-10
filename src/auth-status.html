@@ -100,7 +100,7 @@
       font-weight: 600;
       font-size: .8em;
       line-height: 20px;
-      padding: 20px;
+      padding: 5px;
     }
 
     .controls.window {
@@ -121,6 +121,7 @@
       border: none;
       border-radius: 20px;
       cursor: pointer;
+      width: 150px;
       height: 40px;
     }
 
@@ -142,21 +143,39 @@
       background: none;
       border-radius: 0;
       border-bottom: 1px solid #ccc;
-
+      letter-spacing: 2px;
       &:focus {
         outline: none;
       }
       &:focus ~ .bar:before {
-        width: 300px;
+        width: 200px;
       }
     }
 
     .sms-container {
-      padding-top: 20px;
+      padding: 20px;
       display: flex;
       flex-direction: column;
       justify-content: center;
-      gap: 10px;
+      align-items: center;
+      border : 2px solid rgb(196, 196, 196);
+    }
+
+    .bar {
+      position: relative;
+      display: block;
+      width: 200px;
+      margin-bottom: 20px;
+      &:before {
+        content: '';
+        height: 2px;
+        width: 0;
+        bottom: 0px;
+        position: absolute;
+        background: rgb(224, 26, 34);
+        transition: 300ms ease all;
+        left: 0%;
+      }
     }
   </style>
 </head>
@@ -192,11 +211,11 @@
       <button id="refreshBtn" onclick="handleRefresh()" {{authInProgressDisabled}}>
         Get Roster
       </button>
-
       <div class="sms-container">
         <input type="text" inputmode="numeric" pattern="\d{6}" maxlength="6" style="text-align: center;"
           oninput="this.value = this.value.replace(/\D/g, '').slice(0, 6)" id="smsCode" placeholder="Enter SMS code" />
-        <button onclick="handleSubmitSMS()">Submit SMS Code</button>
+        <span class="bar"></span>
+        <button onclick="handleSubmitSMS()">Submit</button>
       </div>
     </div>
   </div>
