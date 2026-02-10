@@ -1,0 +1,341 @@
+<!doctype html>
+<html>
+
+<head>
+  <title>Auth Status</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family:
+        'Century Gothic', Arial, sans-serif;
+      background: rgb(255, 255, 255);
+    }
+
+    .header {
+      height: 90px;
+      background-color: rgb(224, 26, 34);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: rgb(255, 255, 255);
+      font-size: x-large;
+      padding: 20px;
+    }
+
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 50px;
+      color: rgb(24, 24, 24);
+    }
+
+    .window {
+      border-radius: 20px;
+      overflow: hidden;
+      background-color: white;
+      margin-bottom: 20px;
+      width: 80%;
+      max-width: 500px;
+    }
+
+    .status.window {
+      border: 2px solid rgb(51, 186, 151);
+      box-shadow: 0 3px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .status-info {
+      color: black;
+      padding: 20px;
+    }
+
+    .status-title {
+      font-size: x-small;
+      font-weight: normal;
+      height: 50px;
+      background-color: rgb(217, 248, 240);
+      display: flex;
+      justify-content: start;
+      align-items: center;
+      gap: 10px;
+      padding: 20px;
+    }
+
+    .dot {
+      height: 10px;
+      width: 10px;
+      background-color: rgb(51, 186, 151);
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid rgb(240, 240, 240);
+    }
+
+    .status-row:last-child {
+      border-bottom: none;
+    }
+
+    .label {
+      font-weight: 600;
+      color: rgb(77, 77, 77);
+    }
+
+    .value {
+      color: rgb(94, 94, 94);
+      background: rgb(240, 240, 240);
+      padding: 5px 10px;
+      font-size: small;
+      border-radius: 20px;
+    }
+
+    .bookmark {
+      color: #6e6e6d;
+      font-weight: 600;
+      font-size: .8em;
+      line-height: 20px;
+      padding: 5px;
+    }
+
+    .controls.window {
+      min-height: 50px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-weight: 600;
+      background: rgb(224, 26, 34);
+      color: white;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      width: 150px;
+      height: 40px;
+    }
+
+    button:hover {
+      background: rgb(168, 20, 25);
+    }
+
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    input {
+      padding: 10px 10px 10px 5px;
+      border: none;
+      border-radius: 4px;
+      width: 200px;
+      font-size: 16px;
+      background: none;
+      border-radius: 0;
+      border-bottom: 1px solid #ccc;
+      letter-spacing: 2px;
+
+      &:focus {
+        outline: none;
+      }
+
+      &:focus~.bar:before {
+        width: 200px;
+      }
+    }
+
+    #smsContainer {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      border: 2px solid rgb(196, 196, 196);
+    }
+
+    .bar {
+      position: relative;
+      display: block;
+      width: 200px;
+      margin-bottom: 20px;
+
+      &:before {
+        content: '';
+        height: 2px;
+        width: 0;
+        bottom: 0px;
+        position: absolute;
+        background: rgb(224, 26, 34);
+        transition: 300ms ease all;
+        left: 0%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="header">
+    <h1><span style="font-weight: lighter;">easi</span>roster</span></h1>
+  </div>
+  <div class="app-container">
+
+    <div class="status window">
+      <div class="status-title">
+        <div class="dot"></div>
+        <h2>Authentication Status</h2>
+      </div>
+      <div class="status-info">
+        <div class="status-row">
+          <span class="label">Token Status</span>
+          <span class="value">{{tokenStatus}}</span>
+        </div>
+        <div class="status-row">
+          <span class="label">Auth in Progress</span>
+          <span class="value" id="authProgress">{{authInProgress}}</span>
+        </div>
+        <div class="status-row">
+          <span class="label">Waiting for SMS</span>
+          <span class="value" id="waitingSMS">{{waitingForSMS}}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="bookmark">
+      <span>Please don't bookmark this page</span>
+    </div>
+
+    <div class="controls window">
+      <button id="refreshBtn" onclick="handleRefresh()" {{authInProgressDisabled}}>
+        Get Roster
+      </button>
+      <div id="smsContainer" style="display: none">
+        <input type="text" inputmode="numeric" pattern="\d{6}" maxlength="6" style="text-align: center;"
+          oninput="this.value = this.value.replace(/\D/g, '').slice(0, 6)" id="smsCode" placeholder="Enter SMS code" />
+        <span class="bar"></span>
+        <button onclick="handleSubmitSMS()">Submit</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    let pollInterval = null;
+    async function handleRefresh() {
+
+      const btn = document.getElementById("refreshBtn");
+      btn.disabled = true;
+      try {
+        const res = await fetch("/refresh-auth", { method: "POST" });
+        const data = await res.json();
+        if (data.success) {
+          console.log("Token Refresh Started");
+          startPolling(); // waiting for SMS
+        }
+      } catch (e) {
+        console.error("Error refreshing token:", e);
+        btn.disabled = false;
+      }
+    }
+
+    async function handleSubmitSMS() {
+      const code = document.getElementById("smsCode").value;
+      if (!code || code.length < 6) {
+        console.log("Please enter a valid SMS code");
+        return;
+      }
+      try {
+        const res = await fetch("/submit-sms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sms_code: code }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          console.log("Code Submitted");
+          document.getElementById("smsCode").value = "";
+        } else {
+          console.log(data.error || "Failed to submit code");
+        }
+      } catch (e) {
+        console.log("Error submitting code");
+      }
+    }
+
+    async function pollAuthStatus() {
+      try {
+        const res = await fetch("/auth-status-json");
+        const data = await res.json();
+
+        document.getElementById("authProgress").textContent =
+          data.authInProgress;
+        document.getElementById("waitingSMS").textContent =
+          data.waitingForSMS;
+
+        const smsGroup = document.getElementById("smsContainer");
+        if (data.waitingForSMS && smsGroup.style.display === "none") {
+          smsGroup.style.display = "block";
+          console.log("SMS Code Needed");
+          document.getElementById("smsCode").focus();
+        }
+
+        if (
+          !data.authInProgress &&
+          data.lastToken &&
+          !window.rosterGenerated
+        ) {
+          window.rosterGenerated = true;
+          stopPolling();
+          await generateRoster();
+        }
+      } catch (e) {
+        console.error("Poll error:", e);
+      }
+    }
+
+    async function generateRoster() {
+      try {
+        console.log("Generating roster...");
+        const res = await fetch("/generate-roster", { method: "POST" });
+        const data = await res.json();
+        if (data.success) {
+          console.log("Roster generated: " + data.shiftCount + " shift(s)");
+          document.getElementById("smsContainer").style.display = "none";
+          window.rosterGenerated = false;
+        } else {
+          console.log("Error: " + (data.error || "Unknown error"));
+        }
+        document.getElementById("refreshBtn").disabled = false;
+      } catch (e) {
+        console.log("Error generating roster");
+        document.getElementById("refreshBtn").disabled = false;
+      }
+    }
+
+    function startPolling() {
+      if (pollInterval) return;
+      pollInterval = setInterval(pollAuthStatus, 500);
+      pollAuthStatus();
+    }
+
+    function stopPolling() {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
+    }
+  </script>
+</body>
+
+</html>
