@@ -1,6 +1,5 @@
 import fs from "fs/promises";
 import path from "node:path";
-import readline from "node:readline";
 import { chromium } from "playwright";
 import dotenv from "dotenv";
 
@@ -12,26 +11,9 @@ const TARGET_URL =
   "https://colesgroup.sharepoint.com/sites/mycoles/work/hours/Pages/default.aspx";
 const TOKEN_WAIT_MS = 60_000;
 
-function promptTerminal(question, timeoutMs = 120_000) {
-  return new Promise((resolve, reject) => {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-    let timer = null;
-    if (timeoutMs) {
-      timer = setTimeout(() => {
-        rl.close();
-        reject(new Error("Timed out waiting for input"));
-      }, timeoutMs);
-    }
-    rl.question(question, (answer) => {
-      if (timer) clearTimeout(timer);
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
-}
+let pendingOTP = null;
+let authInProgress = false;
+let lastToken = null;
 
 async function loadCookies() {
   try {
@@ -55,12 +37,18 @@ async function saveCookies(state) {
 export async function getFreshAccessToken({
   headless = process.env.PLAYWRIGHT_HEADLESS !== "0",
 } = {}) {
+  if (authInProgress) {
+    throw new Error("Auth already in progress");
+  }
+
+  authInProgress = true;
+
   const email = process.env.EMAIL;
   const password = process.env.PASSWORD;
 
   if (!email || !password) {
     throw new Error(
-      "EMAIL and PASSWORD must be set in .env for automated login"
+      "EMAIL and PASSWORD must be set in .env for automated login",
     );
   }
 
@@ -120,7 +108,7 @@ export async function getFreshAccessToken({
     if (
       /login.microsoftonline.com|login.microsoft.com/.test(currentUrl) ||
       (await page.$(
-        'input[type="email"], input[name="loginfmt"], input[id^="i0116"]'
+        'input[type="email"], input[name="loginfmt"], input[id^="i0116"]',
       ))
     ) {
       // Email
@@ -141,7 +129,7 @@ export async function getFreshAccessToken({
         }
       } catch (e) {
         console.log(
-          "Failed to enter email. Email may be incorrect or input not found."
+          "Failed to enter email. Email may be incorrect or input not found.",
         );
       }
 
@@ -149,7 +137,7 @@ export async function getFreshAccessToken({
       try {
         await page.waitForSelector(
           'input[type="password"], input[id^="i0118"]',
-          { timeout: 20000 }
+          { timeout: 20000 },
         );
         const passInput = page.getByRole("textbox", {
           name: /password/i,
@@ -167,49 +155,50 @@ export async function getFreshAccessToken({
         }
       } catch (e) {
         console.log(
-          "Failed to enter password. Password may be incorrect or input not found."
+          "Failed to enter password. Password may be incorrect or input not found.",
         );
       }
 
       // After submitting credentials, Microsoft may require MFA code
-      let needOtp = false;
+      let needOTP = false;
       try {
-        needOtp = await page
+        needOTP = await page
           .locator('[role="button"][data-value="OneWaySMS"]')
           .waitFor({ timeout: 8000 })
           .then(() => true)
           .catch(() => false);
       } catch (e) {
-        needOtp = false;
+        needOTP = false;
       }
 
-      if (needOtp) {
+      if (needOTP) {
         try {
           await page.locator('[role="button"][data-value="OneWaySMS"]').click();
         } catch (e) {
           console.log("Couldn't press SMS verification button.");
         }
-        const code = await promptTerminal(
-          "Enter SMS verification code (or press Enter to abort): "
-        );
+        const code = await new Promise((resolve, reject) => {
+          pendingOTP = { resolve, reject };
+        });
         if (!code) {
           console.log("SMS verification required but no code provided");
         }
         const codeInput = page.locator(
-          'input[type="tel"], input[name="otc"], input[id*="otc"]'
+          'input[type="tel"], input[name="otc"], input[id*="otc"]',
         );
 
         try {
           await codeInput.waitFor({ timeout: 30000 });
           await codeInput.fill(code);
           try {
+            pendingOTP = null;
             await codeInput.press("Enter");
           } catch (e) {
             console.log("Failed to press Enter after entering SMS code.");
           }
         } catch (e) {
           console.log(
-            "Failed to enter SMS code. Code may be incorrect or input not found."
+            "Failed to enter SMS code. Code may be incorrect or input not found.",
           );
         }
 
@@ -235,12 +224,12 @@ export async function getFreshAccessToken({
         });
       } catch (e) {
         console.log(
-          "Login may have failed or took too long, still waiting for token..."
+          "Login may have failed or took too long, still waiting for token...",
         );
       }
     }
 
-    const foundToken = await tokenPromise;
+    const initalToken = await tokenPromise;
 
     try {
       const state = await context.storageState();
@@ -249,13 +238,14 @@ export async function getFreshAccessToken({
       // ignore
     }
 
-    if (foundToken) {
-      return foundToken;
+    if (initalToken) {
+      lastToken = initalToken;
+      return initalToken;
     }
 
     await page.reload({ waitUntil: "domcontentloaded" }).catch(() => null);
     token = null;
-    const foundToken2 = await new Promise((resolve) => {
+    const reloadedToken = await new Promise((resolve) => {
       const start = Date.now();
       const check = setInterval(() => {
         if (token) {
@@ -269,14 +259,35 @@ export async function getFreshAccessToken({
       }, 300);
     });
 
-    if (foundToken2) return foundToken2;
+    if (reloadedToken) {
+      lastToken = reloadedToken;
+      return reloadedToken;
+    }
 
     throw new Error("Failed to capture Bearer token from browser requests");
   } finally {
     try {
+      authInProgress = false;
       await browser.close();
     } catch (e) {
+      authInProgress = false;
       throw new Error("Failed to close browser: " + e.message);
     }
   }
+}
+
+export function submitSMSCode(code) {
+  if (!pendingOTP) {
+    throw new Error("No SMS verification pending");
+  }
+  pendingOTP.resolve(code);
+  pendingOTP = null;
+}
+
+export function getAuthStatus() {
+  return {
+    authInProgress,
+    waitingForSMS: !!pendingOTP,
+    lastToken,
+  };
 }

@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Auth Status</title>
+  </head>
+  <body>
+    <h1>Authentication Status</h1>
+
+    <div>
+      <div>
+        <span>Cookie Status:</span>
+        <span>{{tokenStatus}}</span>
+      </div>
+      <div>
+        <span>Cookie Expiry:</span>
+        <span>{{expiry}}</span>
+      </div>
+    </div>
+
+    <form method="POST" action="/refresh-auth">
+      <button type="submit">Refresh Token (Run Playwright)</button>
+    </form>
+    <form method="POST" action="/submit-sms">
+      <input name="sms_code" placeholder="Enter SMS code" />
+      <button type="submit">Submit SMS Code</button>
+    </form>
+
+    <div>
+      <div>
+        <button
+          id="refreshBtn"
+          onclick="handleRefresh()"
+          {{authInProgressDisabled}}
+        >
+          Get Roster
+        </button>
+      </div>
+
+      <div>
+        <input
+          type="text"
+          id="smsCode"
+          placeholder="Enter SMS code"
+          maxlength="6"
+        />
+        <button onclick="handleSubmitSMS()">Submit SMS Code</button>
+      </div>
+    </div>
+
+    <script>
+      async function handleRefresh() {
+        const btn = document.getElementById("refreshBtn");
+        btn.disabled = true;
+      }
+
+      async function handleSubmitSMS() {
+        const code = document.getElementById("smsCode").value;
+        if (!code || code.length < 6) {
+          showToast("Please enter a valid SMS code", "error");
+          return;
+        }
+      }
+    </script>
+  </body>
+</html>

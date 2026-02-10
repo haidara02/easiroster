@@ -1,16 +1,25 @@
 import http from "node:http";
 import { URL } from "node:url";
-import {
-  defaultDateRange,
-  generateRosterIcs,
-  validateDate,
-  formatExpiry,
-} from "./service.js";
+import { formatExpiry } from "./service.js";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const PORT = process.env.PORT || 3000;
 const ICS_PATH = path.resolve("./roster.ics");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+let templateHtml = null;
+
+async function loadTemplate() {
+  if (!templateHtml) {
+    templateHtml = await fs.readFile(
+      path.join(__dirname, "auth-status.html"),
+      "utf-8",
+    );
+  }
+  return templateHtml;
+}
 
 async function handleRosterRequest(req, res, url) {
   try {
@@ -32,7 +41,7 @@ async function handleAuthStatus(req, res) {
   try {
     const cookiesRaw = await fs.readFile(
       path.resolve("./data/cookies.json"),
-      "utf-8"
+      "utf-8",
     );
     const c = JSON.parse(cookiesRaw);
     console.log("Loaded cookies:", c);
@@ -44,25 +53,14 @@ async function handleAuthStatus(req, res) {
     tokenStatus = "Missing";
   }
 
+  const template = await loadTemplate();
+  const html = template
+    .replace("{{tokenStatus}}", tokenStatus)
+    .replace("{{expiry}}", expiry);
+
   res.statusCode = 200;
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.end(`
-    <html>
-      <head><title>Auth Status</title></head>
-      <body>
-        <h1>Authentication Status</h1>
-        <p>Cookie status: <b>${tokenStatus}</b></p>
-        <p>Cookie expiry: <b>${expiry}</b></p>
-        <form method="POST" action="/refresh-auth">
-          <button type="submit">Refresh Token (Run Playwright)</button>
-        </form>
-        <form method="POST" action="/submit-sms">
-          <input name="sms_code" placeholder="Enter SMS code" />
-          <button type="submit">Submit SMS Code</button>
-        </form>
-      </body>
-    </html>
-  `);
+  res.end(html);
 }
 
 // TODO: Add POST handlers for /refresh-auth and /submit-sms to trigger Playwright login flow and accept SMS codes, respectively
@@ -70,12 +68,7 @@ async function handleAuthStatus(req, res) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
 
-  if (req.method === "GET" && url.pathname === "/roster.ics") {
-    await handleRosterRequest(req, res, url);
-    return;
-  }
-
-  if (req.method === "GET" && url.pathname === "/auth-status") {
+  if (url.pathname === "/") {
     await handleAuthStatus(req, res);
     return;
   }
@@ -87,7 +80,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (url.pathname === "/" || url.pathname === "/health") {
+  if (req.method === "GET" && url.pathname === "/roster.ics") {
+    await handleRosterRequest(req, res, url);
+    return;
+  }
+
+  if (req.method !== "GET" || url.pathname === "/health") {
     res.statusCode = 200;
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.end("OK");
