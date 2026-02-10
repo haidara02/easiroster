@@ -121,7 +121,7 @@ async function handleGenerateRoster(req, res) {
 }
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
-  console.log("Incoming request:", req.method, req.url);
+  // console.log("Incoming request:", req.method, req.url);
   if (url.pathname === "/") {
     await handleAuthStatus(req, res);
     return;
