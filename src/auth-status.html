@@ -222,7 +222,7 @@
       <button id="refreshBtn" onclick="handleRefresh()" {{authInProgressDisabled}}>
         Get Roster
       </button>
-      <div id="smsContainer">
+      <div id="smsContainer" style="display: none">
         <input type="text" inputmode="numeric" pattern="\d{6}" maxlength="6" style="text-align: center;"
           oninput="this.value = this.value.replace(/\D/g, '').slice(0, 6)" id="smsCode" placeholder="Enter SMS code" />
         <span class="bar"></span>
