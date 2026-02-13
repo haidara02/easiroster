@@ -42,7 +42,7 @@ export async function generateRosterIcs({ dateFrom, dateTo }) {
   // Ensure we have a bearer token; if not, attempt to capture one via Playwright
   if (!config.bearerToken) {
     console.log(
-      "No bearer token provided; attempting automated login to capture token..."
+      "No bearer token provided; attempting automated login to capture token...",
     );
     const token = await getFreshAccessToken();
     config.bearerToken = token;
@@ -79,6 +79,7 @@ export async function generateRosterIcs({ dateFrom, dateTo }) {
   return {
     ics,
     shiftCount: Array.isArray(shifts) ? shifts.length : 0,
+    roster,
   };
 }
 
